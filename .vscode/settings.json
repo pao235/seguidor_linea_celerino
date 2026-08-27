@@ -22,7 +22,7 @@
   "idf.openOcdConfigs": [
     "board/esp32c3-builtin.cfg"
   ],
-  "idf.portWin": "detect",
+  "idf.portWin": "COM3",
   "idf.currentSetup": "C:/Espressif/frameworks/esp-idf-v5.3.1/",
   "idf.customExtraVars": {
     "IDF_TARGET": "esp32c3"
@@ -32,5 +32,6 @@
     "--background-index",
     "--query-driver=**",
     "--compile-commands-dir=d:\\innobotica\\Seguidor_linea\\build"
-  ]
+  ],
+  "idf.flashType": "UART"
 }

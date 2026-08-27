@@ -99,9 +99,9 @@ RECEPTOR_IR:
 
 // =============== VELOCIDADES ============
 
-#define BASE_SPEED          340
-#define SEARCH_SPEED        430
-#define CAL_SPEED           160
+#define BASE_SPEED        374 // 340
+#define SEARCH_SPEED      473  //430
+//#define CAL_SPEED           //160
 #define MAX_SPEED           1050
 
 // =================== IR =================
