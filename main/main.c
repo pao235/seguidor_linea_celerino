@@ -158,6 +158,9 @@ typedef enum{
 
 volatile robot_state_t robot_state = STATE_IDLE;
 
+// Contador de pasos de calibración: 0 = listo para capturar negros, 1 = listo para capturar blancos
+volatile uint8_t calibration_step = 0;
+
 volatile bool start_sequence_pending = false;
 volatile int64_t start_time_us = 0;
 
@@ -293,6 +296,8 @@ void app_main(void)
                 calibrate();
 
                 robot_state = STATE_IDLE;
+                // Apagar el LED para indicar que terminaron los 5 segundos
+                gpio_set_level((gpio_num_t)LED_WHITE_PIN, 0); 
 
                 break;
 
@@ -720,67 +725,57 @@ void read_sensors(int *readings)
 
 void calibrate(void)
 {
-    for(int i=0;i<NUM_SENSORS;i++)
-    {
-        minValues[i] = 4095;
-        maxValues[i] = 0;
-    }
-
     int buf[NUM_SENSORS];
+    int64_t t;
 
-    int64_t t = esp_timer_get_time();
-
-    while(esp_timer_get_time() - t < 5000000)
+    // Si es la primera vez que se presiona (paso 0), reiniciamos los mínimos y máximos
+    if (calibration_step == 0)
     {
-        process_ir();
-
-        if(robot_state == STATE_STOPPED)
-            return;
-
-        set_motor_speeds(-CAL_SPEED,CAL_SPEED);
-
-        read_sensors(buf);
-
-        for(int i=0;i<NUM_SENSORS;i++)
+        for(int i = 0; i < NUM_SENSORS; i++)
         {
-            if(buf[i] < minValues[i])
-                minValues[i] = buf[i];
-
-            if(buf[i] > maxValues[i])
-                maxValues[i] = buf[i];
+            minValues[i] = 4095;
+            maxValues[i] = 0;
         }
-
-        vTaskDelay(1);
     }
 
+    // Asegurarnos de que el robot NO se mueva durante la captura
+    set_motor_speeds(0, 0);
+
+    // Capturar datos durante 5 segundos
     t = esp_timer_get_time();
-
     while(esp_timer_get_time() - t < 5000000)
     {
         process_ir();
 
+        // Permitir abortar la calibración con el comando STOP
         if(robot_state == STATE_STOPPED)
+        {
+            calibration_step = 0; // Reiniciamos el contador si se cancela
             return;
-
-        set_motor_speeds(CAL_SPEED,-CAL_SPEED);
+        }
 
         read_sensors(buf);
 
-        for(int i=0;i<NUM_SENSORS;i++)
+        // Actualizar min y max dinámicamente con las lecturas de la superficie
+        for(int i = 0; i < NUM_SENSORS; i++)
         {
-            if(buf[i] < minValues[i])
-                minValues[i] = buf[i];
-
-            if(buf[i] > maxValues[i])
-                maxValues[i] = buf[i];
+            if(buf[i] < minValues[i]) minValues[i] = buf[i];
+            if(buf[i] > maxValues[i]) maxValues[i] = buf[i];
         }
 
         vTaskDelay(1);
     }
 
-    set_motor_speeds(0,0);
+    // Incrementar el contador de pasos de calibración
+    calibration_step++;
 
-    fan_test_startup();
+    // Si ya completamos ambas capturas (negro y blanco), reiniciamos el contador a 0
+    if (calibration_step >= 2)
+    {
+        calibration_step = 0;
+        
+        // fan_test_startup(); 
+    }
 }
 
 // =====================================================
