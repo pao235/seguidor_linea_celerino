@@ -53,6 +53,13 @@ RECEPTOR_IR:
 // =====================================================
 
 
+#define VERSION 0
+
+#if VERSION == 0
+// =====================================================
+// CELERINO V2 - ESP32-C3 SUPER MINI
+// =====================================================
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -99,9 +106,9 @@ RECEPTOR_IR:
 
 // =============== VELOCIDADES ============
 
-#define BASE_SPEED        374 // 340
-#define SEARCH_SPEED      473  //430
-//#define CAL_SPEED           //160
+#define BASE_SPEED          340
+#define SEARCH_SPEED        430
+#define CAL_SPEED           160
 #define MAX_SPEED           1050
 
 // =================== IR =================
@@ -114,7 +121,7 @@ RECEPTOR_IR:
 
 #define FAN_ESC_MIN_US    900
 #define FAN_ESC_IDLE_US  1100
-#define FAN_ESC_RUN_US   1400
+#define FAN_ESC_RUN_US   1500
 #define FAN_ARM_TIME_MS  5000
 
 // =====================================================
@@ -150,9 +157,6 @@ typedef enum{
 }robot_state_t;
 
 volatile robot_state_t robot_state = STATE_IDLE;
-
-// Contador para los pasos de calibración (0 = negro, 1 = blanco)
-volatile uint8_t calibration_step = 0; 
 
 volatile bool start_sequence_pending = false;
 volatile int64_t start_time_us = 0;
@@ -289,9 +293,6 @@ void app_main(void)
                 calibrate();
 
                 robot_state = STATE_IDLE;
-                
-                // Apagar el LED para indicar que terminaron los 5 segundos de este paso
-                gpio_set_level((gpio_num_t)LED_WHITE_PIN, 0);
 
                 break;
 
@@ -382,9 +383,7 @@ void process_ir(void)
         // =====================================
 
         case IR_CMD_START:
-            
-            calibration_step = 0; // Reiniciar estado del contador por seguridad
-            
+
             previous_error = 0;
             I = 0;
 
@@ -409,8 +408,6 @@ void process_ir(void)
 
         case IR_CMD_STOP:
 
-            calibration_step = 0; // Reiniciar estado del contador
-            
             start_sequence_pending = false;
 
             robot_state = STATE_STOPPED;
@@ -723,39 +720,27 @@ void read_sensors(int *readings)
 
 void calibrate(void)
 {
-    int buf[NUM_SENSORS];
-    int64_t t;
-
-    // Si es la primera vez que se presiona (paso 0), reiniciamos los mínimos y máximos
-    if (calibration_step == 0)
+    for(int i=0;i<NUM_SENSORS;i++)
     {
-        for(int i=0;i<NUM_SENSORS;i++)
-        {
-            minValues[i] = 4095;
-            maxValues[i] = 0;
-        }
+        minValues[i] = 4095;
+        maxValues[i] = 0;
     }
 
-    // Asegurarnos de que el robot NO se mueva durante la captura
-    set_motor_speeds(0,0);
+    int buf[NUM_SENSORS];
 
-    // Capturar datos durante 5 segundos
-    t = esp_timer_get_time();
+    int64_t t = esp_timer_get_time();
 
     while(esp_timer_get_time() - t < 5000000)
     {
         process_ir();
 
-        // Permitir abortar la calibración con el comando STOP
         if(robot_state == STATE_STOPPED)
-        {
-            calibration_step = 0; // Reiniciamos el contador si se cancela
             return;
-        }
+
+        set_motor_speeds(-CAL_SPEED,CAL_SPEED);
 
         read_sensors(buf);
 
-        // Actualizar min y max dinámicamente
         for(int i=0;i<NUM_SENSORS;i++)
         {
             if(buf[i] < minValues[i])
@@ -768,17 +753,34 @@ void calibrate(void)
         vTaskDelay(1);
     }
 
-    // Incrementar el contador de pasos de calibración
-    calibration_step++;
+    t = esp_timer_get_time();
 
-    // Si ya completamos ambas capturas (negro y blanco), reiniciamos el contador a 0
-    if (calibration_step >= 2)
+    while(esp_timer_get_time() - t < 5000000)
     {
-        calibration_step = 0;
-        
-        // Ejecutar prueba de ventilador al finalizar ambas fases
-        fan_test_startup(); 
+        process_ir();
+
+        if(robot_state == STATE_STOPPED)
+            return;
+
+        set_motor_speeds(CAL_SPEED,-CAL_SPEED);
+
+        read_sensors(buf);
+
+        for(int i=0;i<NUM_SENSORS;i++)
+        {
+            if(buf[i] < minValues[i])
+                minValues[i] = buf[i];
+
+            if(buf[i] > maxValues[i])
+                maxValues[i] = buf[i];
+        }
+
+        vTaskDelay(1);
     }
+
+    set_motor_speeds(0,0);
+
+    fan_test_startup();
 }
 
 // =====================================================
@@ -868,3 +870,5 @@ float calculate_pid(float error)
         (Ki * I) +
         (Kd * D);
 }
+
+#endif
