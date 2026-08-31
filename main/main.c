@@ -328,6 +328,7 @@ void app_main(void)
                     if(left > MAX_SPEED) left = MAX_SPEED;
                     if(right > MAX_SPEED) right = MAX_SPEED;
 
+                    
                     if(left < -MAX_SPEED) left = -MAX_SPEED;
                     if(right < -MAX_SPEED) right = -MAX_SPEED;
 
