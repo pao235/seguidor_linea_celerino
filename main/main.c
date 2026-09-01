@@ -106,10 +106,10 @@ RECEPTOR_IR:
 
 // =============== VELOCIDADES ============
 
-#define BASE_SPEED          340
-#define SEARCH_SPEED        430
-#define CAL_SPEED           160
-#define MAX_SPEED           1050
+#define BASE_SPEED          600
+#define SEARCH_SPEED        750
+#define CAL_SPEED           165
+#define MAX_SPEED           1850
 
 // =================== IR =================
 
@@ -139,9 +139,17 @@ float last_pos = SETPOINT;
 float P,I,D;
 float previous_error = 0;
 
-float Kp = 0.128f;
+// float Kp = 0.128f;
+// float Ki = 0.0f;
+// float Kd = 6.5f;
+
+//float Kp = 0.1f;
+//float Ki = 0.0f;
+//float Kd = 0.6f;
+
+float Kp = 0.3f;
 float Ki = 0.0f;
-float Kd = 6.5f;
+float Kd = 0.6f;
 
 volatile uint32_t fan_pulse_us = FAN_ESC_MIN_US;
 
