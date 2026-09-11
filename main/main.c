@@ -7,7 +7,7 @@
  * Authors:      Ana Cardona, Emiliano Pérez, Luis Anchondo
  * Updated:      05/2026
  * Created on:   2 mar. 2026
- * updated:      18/08/2026
+ * updated:      09/09/2026
  **************************************************************************************************************************/
 /**************************************************************************************************************************
  * * Copyright (C) 2026 by Ana Cardona, Emiliano Pérez, Luis Anchondo - TecNM /IT Chihuahua
@@ -43,15 +43,6 @@ RECEPTOR_IR:
     PINES:
         *Salida Receptor IR - GPIO 0
 */
-
-
-// =====================================================
-// Probablemente puede que sea o no sea esta la versión 
-// con el ajuste de PID para el doble sentido de giro
-// de los motores, así que de antemano pido disculpas si 
-// no es la correcta.
-// =====================================================
-
 
 #define VERSION 0
 
@@ -106,10 +97,10 @@ RECEPTOR_IR:
 
 // =============== VELOCIDADES ============
 
-#define BASE_SPEED          600
+#define BASE_SPEED          420   // 400 //600
 #define SEARCH_SPEED        750
 #define CAL_SPEED           165
-#define MAX_SPEED           1850
+#define MAX_SPEED           735   //700  //1850
 
 // =================== IR =================
 
@@ -119,10 +110,15 @@ RECEPTOR_IR:
 
 // ================== ESC =================
 
-#define FAN_ESC_MIN_US    900
-#define FAN_ESC_IDLE_US  1100
-#define FAN_ESC_RUN_US   1500
+#define FAN_ESC_MIN_US    900   // mínimo / desarmado
+#define FAN_ESC_IDLE_US  1100   // ralentí
+#define FAN_ESC_MAX_US   1350   // tope del ESC
 #define FAN_ARM_TIME_MS  5000
+
+#define FAN_FRAME_MS       20   // 1 trama = 20 ms (50 Hz)
+#define FAN_RAMP_US_PER_S 400   // pendiente de la rampa: µs de pulso por segundo
+
+#define FAN_DEFAULT_RUN_US 1500 // velocidad de trabajo por defecto
 
 // =====================================================
 // VARIABLES
@@ -143,15 +139,20 @@ float previous_error = 0;
 // float Ki = 0.0f;
 // float Kd = 6.5f;
 
+/*Lo mejor*/
 //float Kp = 0.1f;
 //float Ki = 0.0f;
 //float Kd = 0.6f;
 
-float Kp = 0.3f;
+float Kp = 0.1f;
 float Ki = 0.0f;
 float Kd = 0.6f;
 
-volatile uint32_t fan_pulse_us = FAN_ESC_MIN_US;
+// ================ TURBINA ===============
+
+volatile uint32_t fan_pulse_us  = FAN_ESC_MIN_US;      // pulso actual
+volatile uint32_t fan_target_us = FAN_ESC_MIN_US;      // pulso objetivo
+volatile uint32_t fan_run_us    = FAN_DEFAULT_RUN_US;  // velocidad de trabajo (configurable en caliente)
 
 // =====================================================
 // ESTADOS
@@ -203,8 +204,9 @@ void process_ir(void);
 
 void fan_task(void *arg);
 void fan_set_speed_us(uint32_t us);
-void fan_test_startup(void);
+void fan_kill(void);
 void fan_enable(bool enable);
+uint32_t fan_percent_to_us(uint8_t pct);
 
 // =====================================================
 // ISR IR
@@ -279,10 +281,12 @@ void app_main(void)
 
         if(start_sequence_pending)
         {
-            if((esp_timer_get_time() - start_time_us) >= 2000000)
+            if((esp_timer_get_time() - start_time_us) >= 1000000)
             {
                 start_sequence_pending = false;
                 robot_state = STATE_RUNNING;
+                // Lanza la rampa hacia fan_run_us
+                //fan_enable(true);
             }
         }
 
@@ -310,51 +314,52 @@ void app_main(void)
                 break;
 
             // =====================================
-
             case STATE_RUNNING:
             {
                 read_sensors(sensors);
 
                 float position;
 
-                bool line_found =
-                    get_line_pos(sensors,&position);
+                bool line_found = get_line_pos(sensors, &position);
 
                 if(line_found)
                 {
                     float error = position - SETPOINT;
 
-                    float pid =
-                        calculate_pid(error);
+                    float pid = calculate_pid(error);
 
-                    int left =
-                        BASE_SPEED + (int)pid;
+                    int left = BASE_SPEED + (int)pid;
+                    int right = BASE_SPEED - (int)pid;
 
-                    int right =
-                        BASE_SPEED - (int)pid;
-
+                    // Saturación máxima y mínima (reversa permitida)
                     if(left > MAX_SPEED) left = MAX_SPEED;
                     if(right > MAX_SPEED) right = MAX_SPEED;
-
                     
                     if(left < -MAX_SPEED) left = -MAX_SPEED;
                     if(right < -MAX_SPEED) right = -MAX_SPEED;
 
-                    set_motor_speeds(left,right);
+                    set_motor_speeds(left, right);
                 }
                 else
                 {
-                    I = 0;
+                    I = 0; // Reiniciar integral para evitar latigazos al volver a la línea
 
-                    if(previous_error > 0)
-                        set_motor_speeds(SEARCH_SPEED,0);
-                    else
-                        set_motor_speeds(0,SEARCH_SPEED);
+                    // En lugar de detener una llanta, forzamos reversa en la llanta interna
+                    if(previous_error > 0) {
+                        // Se perdió por la derecha, Giro fuerte a la izquierda
+                        set_motor_speeds(SEARCH_SPEED, -SEARCH_SPEED);
+                    } else {
+                        // Se perdió por la izquierda, Giro fuerte a la derecha
+                        set_motor_speeds(-SEARCH_SPEED, SEARCH_SPEED);
+                    }
                 }
 
                 esp_rom_delay_us(SENSOR_DELAY_US);
 
-                vTaskDelay(1);
+                // Reemplazamos vTaskDelay(1) por taskYIELD()
+                // Esto evita bloqueos de milisegundos en el cálculo, 
+                // manteniendo feliz al Watchdog de FreeRTOS.
+                taskYIELD(); 
 
                 break;
             }
@@ -405,10 +410,9 @@ void process_ir(void)
                 (gpio_num_t)LED_WHITE_PIN,
                 0
             );
-
+            
+            //robot_state = STATE_RUNNING;
             fan_enable(true);
-
-            fan_set_speed_us(FAN_ESC_RUN_US);
 
             start_sequence_pending = true;
 
@@ -598,57 +602,95 @@ void init_motors(void)
 }
 
 // =====================================================
-// FAN TASK
+// TURBINA (ESC)
 // =====================================================
 
-void fan_task(void *arg)
+// Escribe directo al hardware el ancho de pulso en µs
+static void fan_write_us(uint32_t us)
 {
-    const uint32_t max_duty = (1 << 14) - 1;
+    const uint32_t max_duty = (1 << 14) - 1;   // 16383
 
-    fan_set_speed_us(FAN_ESC_MIN_US);
+    uint32_t duty = (us * max_duty) / 20000;   // periodo de 20000 µs @ 50 Hz
 
-    vTaskDelay(pdMS_TO_TICKS(FAN_ARM_TIME_MS));
+    ledc_set_duty(
+        LEDC_LOW_SPEED_MODE,
+        LEDC_CHANNEL_4,
+        duty
+    );
 
-    fan_set_speed_us(FAN_ESC_IDLE_US);
-
-    while(1)
-    {
-        uint32_t duty =
-            (fan_pulse_us * max_duty) / 20000;
-
-        ledc_set_duty(
-            LEDC_LOW_SPEED_MODE,
-            LEDC_CHANNEL_4,
-            duty
-        );
-
-        ledc_update_duty(
-            LEDC_LOW_SPEED_MODE,
-            LEDC_CHANNEL_4
-        );
-
-        vTaskDelay(pdMS_TO_TICKS(20));
-    }
+    ledc_update_duty(
+        LEDC_LOW_SPEED_MODE,
+        LEDC_CHANNEL_4
+    );
 }
 
-// =====================================================
-// FAN CONTROL
-// =====================================================
-
+// Cambia el objetivo: fan_task llega ahí en rampa
 void fan_set_speed_us(uint32_t us)
 {
-    if(us < 900) us = 900;
-    if(us > 2000) us = 2000;
+    if(us < FAN_ESC_MIN_US) us = FAN_ESC_MIN_US;
+    if(us > FAN_ESC_MAX_US) us = FAN_ESC_MAX_US;
 
-    fan_pulse_us = us;
+    fan_target_us = us;
+}
+
+// Corte inmediato, sin rampa
+void fan_kill(void)
+{
+    fan_target_us = FAN_ESC_MIN_US;
+    fan_pulse_us  = FAN_ESC_MIN_US;
 }
 
 void fan_enable(bool enable)
 {
     if(enable)
-        fan_set_speed_us(FAN_ESC_RUN_US);
+        fan_set_speed_us(fan_run_us);
     else
-        fan_set_speed_us(FAN_ESC_MIN_US);
+        fan_kill();
+}
+
+// 0-100 % sobre el rango útil (ralentí .. máximo)
+uint32_t fan_percent_to_us(uint8_t pct)
+{
+    if(pct > 100) pct = 100;
+
+    return FAN_ESC_IDLE_US +
+           ((FAN_ESC_MAX_US - FAN_ESC_IDLE_US) * pct) / 100;
+}
+
+void fan_task(void *arg)
+{
+    // µs que se puede mover el pulso en cada trama
+    const uint32_t step = (FAN_RAMP_US_PER_S * FAN_FRAME_MS) / 1000;
+
+    // ---- Armado: el ESC ve el pulso mínimo desde la primera trama ----
+
+    fan_pulse_us  = FAN_ESC_MIN_US;
+    fan_target_us = FAN_ESC_MIN_US;
+
+    fan_write_us(FAN_ESC_MIN_US);
+
+    vTaskDelay(pdMS_TO_TICKS(FAN_ARM_TIME_MS));
+
+    // ---- Rampa suave hasta el ralentí ----
+
+    fan_target_us = FAN_ESC_IDLE_US;
+
+    while(1)
+    {
+        uint32_t cur = fan_pulse_us;
+        uint32_t tgt = fan_target_us;
+
+        if(cur < tgt)
+            cur = (tgt - cur > step) ? cur + step : tgt;
+        else if(cur > tgt)
+            cur = (cur - tgt > step) ? cur - step : tgt;
+
+        fan_pulse_us = cur;
+
+        fan_write_us(cur);
+
+        vTaskDelay(pdMS_TO_TICKS(FAN_FRAME_MS));
+    }
 }
 
 // =====================================================
@@ -782,60 +824,44 @@ void calibrate(void)
     if (calibration_step >= 2)
     {
         calibration_step = 0;
-        
-        // fan_test_startup(); 
     }
-}
-
-// =====================================================
-// FAN TEST
-// =====================================================
-
-void fan_test_startup(void)
-{
-    fan_set_speed_us(1200);
-    vTaskDelay(pdMS_TO_TICKS(1000));
-
-    fan_set_speed_us(1350);
-    vTaskDelay(pdMS_TO_TICKS(1000));
-
-    fan_set_speed_us(FAN_ESC_RUN_US);
-    vTaskDelay(pdMS_TO_TICKS(2000));
-
-    fan_set_speed_us(FAN_ESC_IDLE_US);
 }
 
 // =====================================================
 // POSICIÓN
 // =====================================================
 
-bool get_line_pos(int *readings,float *out_position)
+// =====================================================
+// POSICIÓN (ACTUALIZADA)
+// =====================================================
+bool get_line_pos(int *readings, float *out_position)
 {
     long weighted_sum = 0;
     long total_sum = 0;
-
     bool line_found = false;
 
-    for(int i=0;i<NUM_SENSORS;i++)
+    for(int i = 0; i < NUM_SENSORS; i++)
     {
-        int threshold =
-            (minValues[i] + maxValues[i]) / 2;
+        long range = maxValues[i] - minValues[i];
+        if (range <= 0) range = 1;
 
-        if(readings[i] > threshold)
-        {
+        // Normalizar la lectura de 0 a 1000
+        long n = ((long)(readings[i] - minValues[i]) * 1000L) / range;
+        
+        // Limitar valores por seguridad
+        if (n < 0) n = 0;
+        if (n > 1000) n = 1000;
+
+        // Filtrar el ruido del fondo
+        if (n < 50) n = 0; 
+        
+        // Si el sensor tiene una lectura fuerte, consideramos que vemos la línea
+        if (n > 200) { 
             line_found = true;
-
-            int weight =
-                readings[i] - minValues[i];
-
-            if(weight < 0)
-                weight = 0;
-
-            weighted_sum +=
-                (long)weight * (i * 1000);
-
-            total_sum += weight;
         }
+
+        weighted_sum += n * (i * 1000L);
+        total_sum += n;
     }
 
     if(!line_found || total_sum == 0)
@@ -844,9 +870,7 @@ bool get_line_pos(int *readings,float *out_position)
         return false;
     }
 
-    last_pos =
-        (float)weighted_sum / total_sum;
-
+    last_pos = (float)weighted_sum / total_sum;
     *out_position = last_pos;
 
     return true;
