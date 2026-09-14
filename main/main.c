@@ -7,7 +7,7 @@
  * Authors:      Ana Cardona, Emiliano Pérez, Luis Anchondo
  * Updated:      05/2026
  * Created on:   2 mar. 2026
- * updated:      18/08/2026
+ * updated:      09/09/2026
  **************************************************************************************************************************/
 /**************************************************************************************************************************
  * * Copyright (C) 2026 by Ana Cardona, Emiliano Pérez, Luis Anchondo - TecNM /IT Chihuahua
@@ -43,15 +43,6 @@ RECEPTOR_IR:
     PINES:
         *Salida Receptor IR - GPIO 0
 */
-
-
-// =====================================================
-// Probablemente puede que sea o no sea esta la versión 
-// con el ajuste de PID para el doble sentido de giro
-// de los motores, así que de antemano pido disculpas si 
-// no es la correcta.
-// =====================================================
-
 
 #define VERSION 0
 
@@ -93,10 +84,10 @@ RECEPTOR_IR:
 
 // ================ MOTORES ===============
 
-#define MOTOR_L_IN1 20
-#define MOTOR_L_IN2 21
-#define MOTOR_R_IN1  6
-#define MOTOR_R_IN2  5
+#define MOTOR_L_IN1 21
+#define MOTOR_L_IN2 20
+#define MOTOR_R_IN1  5
+#define MOTOR_R_IN2  6
 
 // ================= EXTRAS ===============
 
@@ -106,10 +97,10 @@ RECEPTOR_IR:
 
 // =============== VELOCIDADES ============
 
-#define BASE_SPEED          600
+#define BASE_SPEED          400   //600
 #define SEARCH_SPEED        750
 #define CAL_SPEED           165
-#define MAX_SPEED           1850
+#define MAX_SPEED           700  //1850
 
 // =================== IR =================
 
@@ -119,10 +110,15 @@ RECEPTOR_IR:
 
 // ================== ESC =================
 
-#define FAN_ESC_MIN_US    900
-#define FAN_ESC_IDLE_US  1100
-#define FAN_ESC_RUN_US   1500
+#define FAN_ESC_MIN_US    900   // mínimo / desarmado
+#define FAN_ESC_IDLE_US  1100   // ralentí
+#define FAN_ESC_MAX_US   1350   // tope del ESC
 #define FAN_ARM_TIME_MS  5000
+
+#define FAN_FRAME_MS       20   // 1 trama = 20 ms (50 Hz)
+#define FAN_RAMP_US_PER_S 400   // pendiente de la rampa: µs de pulso por segundo
+
+#define FAN_DEFAULT_RUN_US 1500 // velocidad de trabajo por defecto
 
 // =====================================================
 // VARIABLES
@@ -143,15 +139,20 @@ float previous_error = 0;
 // float Ki = 0.0f;
 // float Kd = 6.5f;
 
+/*Lo mejor*/
 //float Kp = 0.1f;
 //float Ki = 0.0f;
 //float Kd = 0.6f;
 
-float Kp = 0.3f;
+float Kp = 0.1f;
 float Ki = 0.0f;
 float Kd = 0.6f;
 
-volatile uint32_t fan_pulse_us = FAN_ESC_MIN_US;
+// ================ TURBINA ===============
+
+volatile uint32_t fan_pulse_us  = FAN_ESC_MIN_US;      // pulso actual
+volatile uint32_t fan_target_us = FAN_ESC_MIN_US;      // pulso objetivo
+volatile uint32_t fan_run_us    = FAN_DEFAULT_RUN_US;  // velocidad de trabajo (configurable en caliente)
 
 // =====================================================
 // ESTADOS
@@ -203,8 +204,9 @@ void process_ir(void);
 
 void fan_task(void *arg);
 void fan_set_speed_us(uint32_t us);
-void fan_test_startup(void);
+void fan_kill(void);
 void fan_enable(bool enable);
+uint32_t fan_percent_to_us(uint8_t pct);
 
 // =====================================================
 // ISR IR
@@ -279,10 +281,12 @@ void app_main(void)
 
         if(start_sequence_pending)
         {
-            if((esp_timer_get_time() - start_time_us) >= 2000000)
+            if((esp_timer_get_time() - start_time_us) >= 1000000)
             {
                 start_sequence_pending = false;
                 robot_state = STATE_RUNNING;
+                // Lanza la rampa hacia fan_run_us
+                //fan_enable(true);
             }
         }
 
@@ -405,10 +409,9 @@ void process_ir(void)
                 (gpio_num_t)LED_WHITE_PIN,
                 0
             );
-
+            
+            //robot_state = STATE_RUNNING;
             fan_enable(true);
-
-            fan_set_speed_us(FAN_ESC_RUN_US);
 
             start_sequence_pending = true;
 
@@ -598,57 +601,95 @@ void init_motors(void)
 }
 
 // =====================================================
-// FAN TASK
+// TURBINA (ESC)
 // =====================================================
 
-void fan_task(void *arg)
+// Escribe directo al hardware el ancho de pulso en µs
+static void fan_write_us(uint32_t us)
 {
-    const uint32_t max_duty = (1 << 14) - 1;
+    const uint32_t max_duty = (1 << 14) - 1;   // 16383
 
-    fan_set_speed_us(FAN_ESC_MIN_US);
+    uint32_t duty = (us * max_duty) / 20000;   // periodo de 20000 µs @ 50 Hz
 
-    vTaskDelay(pdMS_TO_TICKS(FAN_ARM_TIME_MS));
+    ledc_set_duty(
+        LEDC_LOW_SPEED_MODE,
+        LEDC_CHANNEL_4,
+        duty
+    );
 
-    fan_set_speed_us(FAN_ESC_IDLE_US);
-
-    while(1)
-    {
-        uint32_t duty =
-            (fan_pulse_us * max_duty) / 20000;
-
-        ledc_set_duty(
-            LEDC_LOW_SPEED_MODE,
-            LEDC_CHANNEL_4,
-            duty
-        );
-
-        ledc_update_duty(
-            LEDC_LOW_SPEED_MODE,
-            LEDC_CHANNEL_4
-        );
-
-        vTaskDelay(pdMS_TO_TICKS(20));
-    }
+    ledc_update_duty(
+        LEDC_LOW_SPEED_MODE,
+        LEDC_CHANNEL_4
+    );
 }
 
-// =====================================================
-// FAN CONTROL
-// =====================================================
-
+// Cambia el objetivo: fan_task llega ahí en rampa
 void fan_set_speed_us(uint32_t us)
 {
-    if(us < 900) us = 900;
-    if(us > 2000) us = 2000;
+    if(us < FAN_ESC_MIN_US) us = FAN_ESC_MIN_US;
+    if(us > FAN_ESC_MAX_US) us = FAN_ESC_MAX_US;
 
-    fan_pulse_us = us;
+    fan_target_us = us;
+}
+
+// Corte inmediato, sin rampa
+void fan_kill(void)
+{
+    fan_target_us = FAN_ESC_MIN_US;
+    fan_pulse_us  = FAN_ESC_MIN_US;
 }
 
 void fan_enable(bool enable)
 {
     if(enable)
-        fan_set_speed_us(FAN_ESC_RUN_US);
+        fan_set_speed_us(fan_run_us);
     else
-        fan_set_speed_us(FAN_ESC_MIN_US);
+        fan_kill();
+}
+
+// 0-100 % sobre el rango útil (ralentí .. máximo)
+uint32_t fan_percent_to_us(uint8_t pct)
+{
+    if(pct > 100) pct = 100;
+
+    return FAN_ESC_IDLE_US +
+           ((FAN_ESC_MAX_US - FAN_ESC_IDLE_US) * pct) / 100;
+}
+
+void fan_task(void *arg)
+{
+    // µs que se puede mover el pulso en cada trama
+    const uint32_t step = (FAN_RAMP_US_PER_S * FAN_FRAME_MS) / 1000;
+
+    // ---- Armado: el ESC ve el pulso mínimo desde la primera trama ----
+
+    fan_pulse_us  = FAN_ESC_MIN_US;
+    fan_target_us = FAN_ESC_MIN_US;
+
+    fan_write_us(FAN_ESC_MIN_US);
+
+    vTaskDelay(pdMS_TO_TICKS(FAN_ARM_TIME_MS));
+
+    // ---- Rampa suave hasta el ralentí ----
+
+    fan_target_us = FAN_ESC_IDLE_US;
+
+    while(1)
+    {
+        uint32_t cur = fan_pulse_us;
+        uint32_t tgt = fan_target_us;
+
+        if(cur < tgt)
+            cur = (tgt - cur > step) ? cur + step : tgt;
+        else if(cur > tgt)
+            cur = (cur - tgt > step) ? cur - step : tgt;
+
+        fan_pulse_us = cur;
+
+        fan_write_us(cur);
+
+        vTaskDelay(pdMS_TO_TICKS(FAN_FRAME_MS));
+    }
 }
 
 // =====================================================
@@ -782,27 +823,7 @@ void calibrate(void)
     if (calibration_step >= 2)
     {
         calibration_step = 0;
-        
-        // fan_test_startup(); 
     }
-}
-
-// =====================================================
-// FAN TEST
-// =====================================================
-
-void fan_test_startup(void)
-{
-    fan_set_speed_us(1200);
-    vTaskDelay(pdMS_TO_TICKS(1000));
-
-    fan_set_speed_us(1350);
-    vTaskDelay(pdMS_TO_TICKS(1000));
-
-    fan_set_speed_us(FAN_ESC_RUN_US);
-    vTaskDelay(pdMS_TO_TICKS(2000));
-
-    fan_set_speed_us(FAN_ESC_IDLE_US);
 }
 
 // =====================================================
