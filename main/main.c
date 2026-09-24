@@ -1226,9 +1226,9 @@ static int64_t last_t_us = 0;
  *   Kp = 0.1 * 1000/7          ~= 14.3
  *   Kd = 0.6 * 1000/7 * 0.0105 ~= 0.9
  */
-float Kp = 3.575f;   // 14.3f / 4
-float Ki = 0.0f;     // 0.0f  / 4
-float Kd = 0.225f;   // 0.9f  / 4
+float Kp = 30.0f;
+float Ki = 0.0f;
+float Kd = 2.65f;
 
 // ================ TURBINA ===============
 
@@ -1549,7 +1549,7 @@ void init_motors(void)
         .speed_mode      = LEDC_LOW_SPEED_MODE,
         .duty_resolution = LEDC_TIMER_12_BIT,
         .timer_num       = LEDC_TIMER_0,
-        .freq_hz         = 20000,
+        .freq_hz         = 5000,
         .clk_cfg         = LEDC_AUTO_CLK
     };
     ledc_timer_config(&timer);
