@@ -1,4 +1,4 @@
-#define VERSION 5
+#define VERSION 4
 
 #if VERSION == 3
 /***************************************************************************************************************************
@@ -245,7 +245,7 @@ void app_main(void)
  * Description:  Celerino line follower con PID en mm y máquina de estados
  * Authors:      Ana Cardona, Emiliano Pérez, Luis Anchondo
  * Created on:   2 mar. 2026
- * Updated:      09/2026
+ * Updated:      25/09/2026
  **************************************************************************************************************************/
 /**************************************************************************************************************************
  * Copyright (C) 2026 by Ana Cardona, Emiliano Pérez, Luis Anchondo - TecNM /IT Chihuahua
@@ -429,6 +429,7 @@ volatile uint8_t calibration_step = 0;
 
 volatile bool    start_sequence_pending = false;
 volatile int64_t start_time_us = 0;
+volatile int64_t time_outside = 0;   // tiempo desde que se perdió la línea
 
 // =====================================================
 // IR
@@ -582,6 +583,8 @@ void app_main(void)
                         was_lost  = false;
                     }
 
+                    last_pos_mm = position_mm;       // Guardamos la última posición válida conocida
+
                     float pid = calculate_pid(error);
 
                     int left  = BASE_SPEED + (int)pid;
@@ -596,13 +599,30 @@ void app_main(void)
                 }
                 else
                 {
-                    I = 0.0f;
-                    was_lost = true;
+                    // Solo registramos el tiempo en el flanco de pérdida
+                    if (!was_lost)
+                    {
+                        time_outside = esp_timer_get_time();
+                        was_lost = true;
+                        I = 0.0f; // Reiniciamos acumulador integral
+                    }
 
-                    if (last_pos_mm > 0.0f)
-                        set_motor_speeds(SEARCH_SPEED, 0);
+                    int64_t elapsed_us = esp_timer_get_time() - time_outside;
+
+                    // Si pasaron más de 3 segundos sin encontrarla, paro definitivo
+                    if (elapsed_us >= 3000000)
+                    {
+                        set_motor_speeds(0, 0);
+                        robot_state = STATE_STOPPED;
+                    }
                     else
-                        set_motor_speeds(0, SEARCH_SPEED);
+                    {
+                        // Gira buscando hacia el último lado donde vio la línea
+                        if (last_pos_mm > 0.0f)
+                            set_motor_speeds(SEARCH_SPEED, -SEARCH_SPEED); // O gira sobre su eje / pivotea
+                        else
+                            set_motor_speeds(-SEARCH_SPEED, SEARCH_SPEED);
+                    }
                 }
                 break;
             }
@@ -1070,7 +1090,7 @@ float calculate_pid(float error_mm)
  * Description:  Celerino line follower con PID en mm y máquina de estados
  * Authors:      Ana Cardona, Emiliano Pérez, Luis Anchondo
  * Created on:   2 mar. 2026
- * Updated:      09/2026
+ * Updated:      25/09/2026
  **************************************************************************************************************************/
 /**************************************************************************************************************************
  * Copyright (C) 2026 by Ana Cardona, Emiliano Pérez, Luis Anchondo - TecNM /IT Chihuahua
@@ -1156,8 +1176,8 @@ RECEPTOR_IR (NEC):
 
 // =============== VELOCIDADES ============
 // Escaladas a 12 bits (Anterior * 4)
-#define BASE_SPEED          2700 // 2600   //2400
-#define SEARCH_SPEED        3100 // 3000
+#define BASE_SPEED          2800 // 2600   //2400
+#define SEARCH_SPEED        3150 // 3000
 #define CAL_SPEED           660
 #define MAX_SPEED           4095 
 
@@ -1254,6 +1274,7 @@ volatile uint8_t calibration_step = 0;
 
 volatile bool    start_sequence_pending = false;
 volatile int64_t start_time_us = 0;
+volatile int64_t time_outside = 0;   
 
 // =====================================================
 // IR
@@ -1407,6 +1428,8 @@ void app_main(void)
                         was_lost  = false;
                     }
 
+                    last_pos_mm = position_mm;       // Guardamos la última posición válida conocida
+
                     float pid = calculate_pid(error);
 
                     int left  = BASE_SPEED + (int)pid;
@@ -1421,13 +1444,29 @@ void app_main(void)
                 }
                 else
                 {
-                    I = 0.0f;
-                    was_lost = true;
+                    if (!was_lost)
+                    {
+                        time_outside = esp_timer_get_time();
+                        was_lost = true;
+                        I = 0.0f; // Reiniciamos acumulador integral
+                    }
 
-                    if (last_pos_mm > 0.0f)
-                        set_motor_speeds(SEARCH_SPEED, 0);
+                    int64_t elapsed_us = esp_timer_get_time() - time_outside;
+
+                    // Si pasaron más de 3 segundos sin encontrarla, detente 
+                    if (elapsed_us >= 3000000)
+                    {
+                        set_motor_speeds(0, 0);
+                        robot_state = STATE_STOPPED;
+                    }
                     else
-                        set_motor_speeds(0, SEARCH_SPEED);
+                    {
+                        // Gira buscando hacia el último lado donde vio la línea
+                        if (last_pos_mm > 0.0f)
+                            set_motor_speeds(SEARCH_SPEED, -SEARCH_SPEED); // O gira sobre su eje / pivotea
+                        else
+                            set_motor_speeds(-SEARCH_SPEED, SEARCH_SPEED);
+                    }
                 }
                 break;
             }
