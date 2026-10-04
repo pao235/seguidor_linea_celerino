@@ -1156,8 +1156,8 @@ RECEPTOR_IR (NEC):
 
 // =============== VELOCIDADES ============
 // Escaladas a 12 bits (Anterior * 4)
-#define BASE_SPEED          2800 //2700 // 2600   //2400
-#define SEARCH_SPEED        3200 // 3000
+#define BASE_SPEED          3100 //2900 //2800 //2700 // 2600   //2400
+#define SEARCH_SPEED        3400 //3300 //3200 // 3000
 #define CAL_SPEED           660
 #define MAX_SPEED           4095 
 
@@ -1171,13 +1171,13 @@ RECEPTOR_IR (NEC):
 
 #define FAN_ESC_MIN_US    900   // mínimo / desarmado
 #define FAN_ESC_IDLE_US  1100   // ralentí
-#define FAN_ESC_MAX_US   1550  // tope del ESC
+#define FAN_ESC_MAX_US   1700  // tope del ESC
 #define FAN_ARM_TIME_MS  5000
 
 #define FAN_FRAME_MS       20   // 1 trama = 20 ms (50 Hz)
 #define FAN_RAMP_US_PER_S 400   // pendiente de la rampa: µs de pulso por segundo
 
-#define FAN_DEFAULT_RUN_US 1550 // se recorta a FAN_ESC_MAX_US en fan_set_speed_us()
+#define FAN_DEFAULT_RUN_US 1700 // se recorta a FAN_ESC_MAX_US en fan_set_speed_us()
 
 // ============ GEOMETRÍA / ESTIMADOR ============
 
