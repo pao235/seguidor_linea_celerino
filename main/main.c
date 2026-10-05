@@ -126,6 +126,10 @@ float Kd = 2.65f;
 volatile uint32_t fan_pulse_us  = FAN_ESC_MIN_US;      // pulso actual
 volatile uint32_t fan_target_us = FAN_ESC_MIN_US;      // pulso objetivo
 volatile uint32_t fan_run_us    = FAN_DEFAULT_RUN_US;  // velocidad de trabajo
+volatile bool fan_started  = false; // Para iniciar la rampa de la turbina en el momento exacto del reglamento (5 s)
+// ================= TIEMPOS DE ARRANQUE =================
+#define DELAY_SAFETY_US     5000000ULL  // 5 segundos estrictos del reglamento
+#define DELAY_FAN_RAMP_US   2000000ULL  // 2 segundos extra para que pegue la turbina
 
 // =====================================================
 // ESTADOS
@@ -246,21 +250,29 @@ void app_main(void)
     {
         process_ir();
 
-        // ============ ARRANQUE NO BLOQUEANTE ============
+        // ============ ARRANQUE EN 2 ETAPAS (NO BLOQUEANTE) ============
 
         if (start_sequence_pending)
         {
-            if ((esp_timer_get_time() - start_time_us) >= 5000000)
+            int64_t elapsed = esp_timer_get_time() - start_time_us;
+
+            // Para cumplir el reglamento, la turbina debe arrancar exactamente a los 5.0 s
+            if (elapsed >= DELAY_SAFETY_US && fan_target_us == FAN_ESC_MIN_US)
+            {
+                fan_started = true;
+                fan_enable(true); // Arranca rampa de turbina exactamente a los 5.0 s
+            }
+
+            // Al cumplir 7s, la turbina ya cumplió con la rampa 
+            if (elapsed >= (DELAY_SAFETY_US + DELAY_FAN_RAMP_US))
             {
                 start_sequence_pending = false;
                 pid_reset();
                 was_lost = true;
-                fan_enable(true);
-                robot_state = STATE_RUNNING;
+                robot_state = STATE_RUNNING; // Inicia el lazo PID de los motores
             }
         }
-
-        switch (robot_state)
+                switch (robot_state)
         {
             case STATE_IDLE:
             case STATE_STOPPED:
@@ -355,8 +367,8 @@ void process_ir(void)
             pid_reset();
             gpio_set_level((gpio_num_t)LED_WHITE_PIN, 0);
 
-            // Descomentar si nos dejan activar mecanismos antes de arrancar la secuencia de arranque (5 s)
-            // fan_enable(true);
+            
+            fan_started = false; // Para iniciar la rampa de la turbina en el momento exacto del reglamento   
 
             start_sequence_pending = true;
             start_time_us = esp_timer_get_time();
