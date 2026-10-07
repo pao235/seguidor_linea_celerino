@@ -47,7 +47,7 @@
 
 // =============== VELOCIDADES ============
 // Escaladas a 12 bits (Anterior * 4)
-#define BASE_SPEED          3000//2800 //2700 // 2600   //2400
+#define BASE_SPEED          2800 //3000//2800 //2700 // 2600   //2400
 #define SEARCH_SPEED        3500 // 3000
 #define CAL_SPEED           660
 #define MAX_SPEED           4095 
@@ -62,13 +62,13 @@
 
 #define FAN_ESC_MIN_US    900   // mínimo / desarmado
 #define FAN_ESC_IDLE_US  1100   // ralentí
-#define FAN_ESC_MAX_US   1550  // tope del ESC
+#define FAN_ESC_MAX_US   1600  // tope del ESC
 #define FAN_ARM_TIME_MS  5000
 
 #define FAN_FRAME_MS       20   // 1 trama = 20 ms (50 Hz)
 #define FAN_RAMP_US_PER_S 400   // pendiente de la rampa: µs de pulso por segundo
 
-#define FAN_DEFAULT_RUN_US 1550 // se recorta a FAN_ESC_MAX_US en fan_set_speed_us()
+#define FAN_DEFAULT_RUN_US 1600 // se recorta a FAN_ESC_MAX_US en fan_set_speed_us()
 
 // ============ GEOMETRÍA / ESTIMADOR ============
 
@@ -256,14 +256,14 @@ void app_main(void)
         {
             int64_t elapsed = esp_timer_get_time() - start_time_us;
 
-            // Para cumplir el reglamento, la turbina debe arrancar exactamente a los 5.0 s
-            if (elapsed >= DELAY_SAFETY_US && fan_target_us == FAN_ESC_MIN_US)
+            // Usar !fan_started en lugar de evaluar fan_target_us
+            if (elapsed >= DELAY_SAFETY_US && !fan_started)
             {
                 fan_started = true;
-                fan_enable(true); // Arranca rampa de turbina exactamente a los 5.0 s
+                fan_enable(true); // Se ejecuta sin importar si la turbina estaba en IDLE o MIN
             }
 
-            // Al cumplir 7s, la turbina ya cumplió con la rampa 
+            // Al cumplir 7s, entra a estado RUNNING
             if (elapsed >= (DELAY_SAFETY_US + DELAY_FAN_RAMP_US))
             {
                 start_sequence_pending = false;
@@ -272,7 +272,8 @@ void app_main(void)
                 robot_state = STATE_RUNNING; // Inicia el lazo PID de los motores
             }
         }
-                switch (robot_state)
+
+        switch (robot_state)
         {
             case STATE_IDLE:
             case STATE_STOPPED:
@@ -329,9 +330,9 @@ void app_main(void)
                     was_lost = true;
 
                     if (last_pos_mm > 0.0f)
-                        set_motor_speeds(SEARCH_SPEED, 0);
+                        set_motor_speeds(SEARCH_SPEED, -SEARCH_SPEED);
                     else
-                        set_motor_speeds(0, SEARCH_SPEED);
+                        set_motor_speeds(-SEARCH_SPEED, SEARCH_SPEED);
                 }
                 break;
             }
