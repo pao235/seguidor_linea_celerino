@@ -33,5 +33,5 @@
     "--compile-commands-dir=d:\\innobotica\\Seguidor_linea\\build"
   ],
   "idf.flashType": "UART",
-  "idf.port": "COM3"
+  "idf.port": "COM10"
 }

@@ -52,6 +52,14 @@
 #define CAL_SPEED           660
 #define MAX_SPEED           4095 
 
+// ===== SELECCIÓN DE VELOCIDAD =====
+static const int SPEED_MID_VAL = BASE_SPEED;
+#define SPEED_LOW_VAL   2300
+#define SPEED_HIGH_VAL  3000
+static const int speed_levels[3] = { SPEED_LOW_VAL, SPEED_MID_VAL, SPEED_HIGH_VAL };
+static volatile uint8_t speed_idx = 1;   // 0 = baja, 1 = media, 2 = alta
+#undef  BASE_SPEED
+#define BASE_SPEED (speed_levels[speed_idx])
 // =================== IR =================
 
 #define IR_CMD_CALIBRATE 0x45
@@ -644,6 +652,22 @@ void calibrate(void)
 
     while (esp_timer_get_time() - t < 5000000)
     {
+        if (ir_ready && ((ir_data >> 16) & 0xFF) == IR_CMD_CALIBRATE)
+        {
+            ir_ready = false;
+            speed_idx = (speed_idx + 1) % 3;   // media -> alta -> baja -> media
+
+            // Confirmación: 1 = baja, 2 = media, 3 = alta
+            for (int b = 0; b <= speed_idx; b++)
+            {
+                gpio_set_level((gpio_num_t)LED_WHITE_PIN, 0);
+                vTaskDelay(pdMS_TO_TICKS(120));
+                gpio_set_level((gpio_num_t)LED_WHITE_PIN, 1);
+                vTaskDelay(pdMS_TO_TICKS(120));
+            }
+        }
+        // ------------------------------------------------------------------
+
         process_ir();
 
         if (robot_state == STATE_STOPPED)
