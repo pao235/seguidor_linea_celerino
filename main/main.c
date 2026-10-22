@@ -1,3 +1,48 @@
+/***************************************************************************************************************************
+ * FileName:     main.c
+ * Processor:    Tensilica Xtensa LX6 160 MHz
+ * Board:        ESP32-C3 SuperMini
+ * Company:      TecNM /IT Chihuahua
+ * Description:  Celerino line follower with PID controller in a state machine
+ * Authors:      Ana Cardona, Emiliano Pérez, Luis Anchondo
+ * Created on:   20 ago. 2026
+ * updated:      22/10/2026
+ **************************************************************************************************************************/
+/**************************************************************************************************************************
+ * * Copyright (C) 2026 by Ana Cardona, Emiliano Pérez, Luis Anchondo - TecNM /IT Chihuahua
+ *
+ * Se permite la redistribucion, modificacion o uso de este software en formato fuente o binario
+ * siempre que los archivos mantengan estos derechos de autor.
+ * Los usuarios pueden modificar esto y usarlo para aprender sobre el campo de software embebido.
+ * Ana Cardona, Emiliano Pérez, Luis Anchondo y el TecNM /IT Chihuahua no son responsables del mal uso de este material.
+ **************************************************************************************************************************/
+
+/*
+Hardware: CELERINO CON ESP32C3 SUPER MINI 
+BARRA DE SENSORES: 16 sensores IR conectados a un MUX 16 canales (74HC4067) que a su vez se conecta al pin ADC del ESP32.
+    PINES:
+        *S0 - GPIO 7
+        *S1 - GPIO 10
+        *S2 - GPIO 2
+        *S3 - GPIO 3
+        *ADC - GPIO 4
+MOTORES: 2 motores DC controlados por un medios puentes h
+    PINES:
+        *Motor Izquierdo IN1 - GPIO 20
+        *Motor Izquierdo IN2 - GPIO 21
+        *Motor Derecho IN1 - GPIO 6
+        *Motor Derecho IN2 - GPIO 5
+VENTILADOR:
+    PINES:
+        *PWM Ventilador - GPIO 8
+LED_CARRO:
+    PINES:
+        *LED BLANCO - GPIO 9
+RECEPTOR_IR:
+    PINES:
+        *Salida Receptor IR - GPIO 0
+*/
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
