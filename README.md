@@ -157,6 +157,7 @@ idf.py -p /dev/ttyUSB0 flash monitor
 * Ana Paola Cardona Valenzuela
 * Emiliano Pérez Dyck
 * Luis Adrián Anchondo Carreón
+* Manuel Alejandro García González
 
 **Institución:** Instituto Tecnológico de Chihuahua (TecNM / ITCH)  
 **Departamento:** Eléctrica y Electrónica  
