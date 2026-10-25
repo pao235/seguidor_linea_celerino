@@ -1,81 +1,81 @@
-# CELERINO · Robot Seguidor de Línea de Alta Velocidad
+# CELERINO · High-Speed Line Follower Robot
 
-**Robot Seguidor de Línea con Control PID, Mux IR de 16 Canales, Turbina Succión y ESP32-C3**  
-Proyecto de Robótica / Software Embebido — Instituto Tecnológico de Chihuahua (ITCH) · 2026
+**Line Follower Robot with PID Control, 16-Channel IR Mux, Suction Turbine and ESP32-C3**  
+Competitive Robotics / Embedded Software Project — Instituto Tecnológico de Chihuahua (ITCH) · 2026
 
-## Descripción
+## Description
 
-**CELERINO** es un robot seguidor de línea de alto rendimiento diseñado para competencias de robótica de velocidad. Su arquitectura combina un microcontrolador ESP32-C3 SuperMini, un sistema de adquisición de datos multiplexado de 16 sensores infrarrojos analógicos, control de velocidad de motores mediante puentes H de alta corriente BTN9960 con protección térmica y sobrecorriente, y un sistema de succión aerodinámica mediante turbina accionada por ESC para maximizar el agarre en curvas.
+**CELERINO** is a high-performance line follower robot designed for speed robotics competitions. Its architecture combines an ESP32-C3 SuperMini microcontroller, a multiplexed data acquisition system with 16 analog infrared sensors, motor speed control through high-current BTN9960 H-bridges with thermal and overcurrent protection, and an aerodynamic suction system using an ESC-driven turbine to maximize grip in curves.
 
-El firmware está programado en C sobre el framework **ESP-IDF**, utilizando una máquina de estados finitos gestionada mediante interrupciones de un receptor infrarrojo para arranque/paro, cálculo de posición por centroide local (promedio ponderado) y control de lazo cerrado PID en tiempo real.
-
----
-
-## Características Principales
-
-* **Control de Procesamiento:** ESP32-C3 SuperMini ejecutando firmware nativo en ESP-IDF con temporización por hardware (`esp_timer`) y lectura ADC de 12 bits.
-* **Barra de Sensores Modular:** 16 fototransistores/LEDs IR conmutados por un multiplexor analógico 74HC4067 (16:1), muestreados en microsegundos y procesados mediante estimación de centroide local.
-* **Etapa de Potencia:** 4 medios puentes H BTN9960 que forman puentes H completos para ambos motores, con soporte de sobrevoltaje, respuesta lineal PWM (5 kHz) y disipación de sobrecorriente al plano de tierra.
-* **Sistema de Succión (Efecto Suelo):** Turbina impulsada por motor brushless y controlada vía ESC (PWM 50 Hz) con rampa de aceleración automática conforme a reglamento de competencia.
-* **Control Remoto Infrarrojo:** Decodificación de protocolo NEC en tiempo real vía interrupciones GPIO para comandos de arranque, calibración y paro de emergencia.
-* **Transmisión Mecánica Personalizada:** Engranajes de reducción 5:1 impresos en PETG para alta durabilidad e intercambiabilidad.
+The firmware is written in C on the **ESP-IDF** framework, using a finite state machine driven by the interrupts of an infrared receiver for start/stop, position calculation through a local centroid (weighted average), and real-time closed-loop PID control.
 
 ---
 
-## Arquitectura del Sistema
+## Main Features
+
+* **Processing Control:** ESP32-C3 SuperMini running native ESP-IDF firmware with hardware timing (`esp_timer`) and 12-bit ADC reading.
+* **Modular Sensor Bar:** 16 IR phototransistors/LEDs switched by a 74HC4067 (16:1) analog multiplexer, sampled in microseconds and processed using local centroid estimation.
+* **Power Stage:** 4 BTN9960 half H-bridges forming full H-bridges for both motors, with overvoltage support, linear PWM response (5 kHz) and overcurrent dissipation into the ground plane.
+* **Suction System (Ground Effect):** Turbine driven by a brushless motor and controlled via ESC (50 Hz PWM) with an automatic acceleration ramp in accordance with competition rules.
+* **Infrared Remote Control:** Real-time decoding of the NEC protocol through GPIO interrupts for start, calibration and emergency stop commands.
+* **Custom Mechanical Transmission:** 5:1 reduction gears 3D-printed in PETG for high durability and interchangeability.
+
+---
+
+## System Architecture
 
 ```
                       ┌───────────────────────────┐
-                      │ Control Remoto IR (NEC)  │
+                      │   IR Remote Control (NEC) │
                       └─────────────┬─────────────┘
-                                    │ Interrupción GPIO0
+                                    │ GPIO0 Interrupt
                                     ▼
 ┌──────────────────┐  16:1 MUX   ┌───────────────────┐  PWM (5 kHz)  ┌──────────────────┐
-│ Barra de 16      │────────────>│ ESP32-C3          │──────────────>│ Puentes H        │───> Motores DC
-│ Sensores IR      │  ADC GPIO4  │ SuperMini         │               │ BTN9960          │     (Tracción)
+│ 16-Sensor        │────────────>│ ESP32-C3          │──────────────>│ BTN9960          │───> DC Motors
+│ IR Bar           │  ADC GPIO4  │ SuperMini         │               │ H-Bridges        │     (Traction)
 └──────────────────┘             │                   │               └──────────────────┘
                                  │ (ESP-IDF / C)     │  PWM (50 Hz)  ┌──────────────────┐
-                                 │ Lazo PID 2 ms     │──────────────>│ ESC / Turbina    │───> Succión
-                                 └───────────────────┘               │ (Fan)            │     (Efecto Suelo)
+                                 │ 2 ms PID loop     │──────────────>│ ESC / Turbine    │───> Suction
+                                 └───────────────────┘               │ (Fan)            │     (Ground Effect)
                                                                      └──────────────────┘
 ```
 
 ---
 
-## Hardware y Componentes
+## Hardware and Components
 
-| Subsistema | Componente | Notas |
+| Subsystem | Component | Notes |
 | --- | --- | --- |
-| **Controlador** | ESP32-C3 SuperMini | RISC-V 32-bit, ADC de alta velocidad |
-| **Sensores Lineales** | Arreglo de 16 Sensores IR + MUX 74HC4067 | Muestreo multiplexado de 16 canales a 12 bits |
-| **Drivers de Motor** | 4x BTN9960 (Medios Puentes H) | Control bidireccional, protección térmica y sobrecorriente |
-| **Turbina / Succión** | Motor Brushless + ESC | Genera presión negativa para adherencia en curvas |
-| **Receptor IR** | Receptor Infrarrojo 38 kHz (GPIO 1) | Lectura de comandos ASCII vía protocolo NEC |
-| **Transmisión** | Engranajes PETG (Reducción 5:1) | Impresión 3D, relación de engranes intercambiable |
-| **Chasis** | Diseño en SolidWorks / PCB Modular | Placa principal y barra de sensores separadas |
+| **Controller** | ESP32-C3 SuperMini | 32-bit RISC-V, high-speed ADC |
+| **Line Sensors** | 16 IR Sensor Array + 74HC4067 MUX | Multiplexed 16-channel sampling at 12 bits |
+| **Motor Drivers** | 4x BTN9960 (Half H-Bridges) | Bidirectional control, thermal and overcurrent protection |
+| **Turbine / Suction** | Brushless Motor + ESC | Generates negative pressure for grip in curves |
+| **IR Receiver** | 38 kHz Infrared Receiver (GPIO 1) | Reads ASCII commands via NEC protocol |
+| **Transmission** | PETG Gears (5:1 Reduction) | 3D printed, interchangeable gear ratio |
+| **Chassis** | SolidWorks Design / Modular PCB | Separate main board and sensor bar |
 
 ---
 
-## Mapeo de Pines (ESP32-C3 SuperMini)
+## Pin Mapping (ESP32-C3 SuperMini)
 
-| Periférico | Pin GPIO | Función |
+| Peripheral | GPIO Pin | Function |
 | --- | --- | --- |
-| **MUX S0** | GPIO 3 | Selector bit 0 del multiplexor 74HC4067 |
-| **MUX S1** | GPIO 2 | Selector bit 1 del multiplexor 74HC4067 |
-| **MUX S2** | GPIO 10 | Selector bit 2 del multiplexor 74HC4067 |
-| **MUX S3** | GPIO 7 | Selector bit 3 del multiplexor 74HC4067 |
-| **ADC MUX** | GPIO 4 (ADC1_CH4) | Salida analógica del multiplexor |
-| **Motor Izq IN1 / IN2** | GPIO 21 / GPIO 20 | PWM LEDC Canal 0 / 1 (5 kHz) |
-| **Motor Der IN1 / IN2** | GPIO 5 / GPIO 6 | PWM LEDC Canal 2 / 3 (5 kHz) |
-| **ESC Turbina** | GPIO 8 | PWM LEDC Canal 4 (50 Hz / Servo Protocol) |
-| **LED Indicador** | GPIO 9 | Salida Digital (Indicador blanco) |
-| **Receptor IR** | GPIO 1 | Entrada Digital con Interrupción Negedge |
+| **MUX S0** | GPIO 3 | Select bit 0 of the 74HC4067 multiplexer |
+| **MUX S1** | GPIO 2 | Select bit 1 of the 74HC4067 multiplexer |
+| **MUX S2** | GPIO 10 | Select bit 2 of the 74HC4067 multiplexer |
+| **MUX S3** | GPIO 7 | Select bit 3 of the 74HC4067 multiplexer |
+| **ADC MUX** | GPIO 4 (ADC1_CH4) | Analog output of the multiplexer |
+| **Left Motor IN1 / IN2** | GPIO 21 / GPIO 20 | LEDC PWM Channel 0 / 1 (5 kHz) |
+| **Right Motor IN1 / IN2** | GPIO 5 / GPIO 6 | LEDC PWM Channel 2 / 3 (5 kHz) |
+| **Turbine ESC** | GPIO 8 | LEDC PWM Channel 4 (50 Hz / Servo Protocol) |
+| **Indicator LED** | GPIO 9 | Digital Output (White indicator) |
+| **IR Receiver** | GPIO 1 | Digital Input with Negedge Interrupt |
 
 ---
 
-## Firmware y Algoritmo de Control
+## Firmware and Control Algorithm
 
-El software se ejecuta en un lazo de control periódico de **2 ms** estructurado en una máquina de estados finitos:
+The software runs in a periodic **2 ms** control loop structured as a finite state machine:
 
 ```
                   ┌──────────────┐
@@ -86,7 +86,7 @@ El software se ejecuta en un lazo de control periódico de **2 ms** estructurado
         ▼                                 ▼
 ┌───────────────────────┐       ┌───────────────────┐
 │   STATE_CALIBRATING   │       │   STATE_RUNNING   │
-│ Autocalibración 5 s   │       │ Lazo PID + Motors │
+│ 5 s auto-calibration  │       │ PID Loop + Motors │
 └───────────────────────┘       └─────────┬─────────┘
                                           │ IR_CMD_STOP
                                           ▼
@@ -95,77 +95,80 @@ El software se ejecuta en un lazo de control periódico de **2 ms** estructurado
                                 └───────────────────┘
 ```
 
-### Algoritmo del Estimador de Posición
-1. **Normalización por Sensor:** Scale individual de cada sensor ($0 \dots 1000$) utilizando los valores mínimo y máximo capturados durante la fase de calibración.
-2. **Filtrado de Ruido:** Sustracción de piso de ruido (`NOISE_FLOOR`) para eliminar lecturas parásitas fuera de la línea.
-3. **Centroide Local (Blobing):** Identificación del sensor pico e inclusión única de los sensores contiguos activos ($\pm \text{BLOB\_HALF}$), previniendo saltos por reflejos en la pista.
-4. **Filtro IIR y Límite de Salto:** Suavizado de posición para evitar discontinuidades abruptas.
+### Position Estimator Algorithm
+1. **Per-Sensor Normalization:** Individual scaling of each sensor ($0 \dots 1000$) using the minimum and maximum values captured during the calibration phase.
+2. **Noise Filtering:** Subtraction of a noise floor (`NOISE_FLOOR`) to eliminate stray readings away from the line.
+3. **Local Centroid (Blobbing):** Identification of the peak sensor and inclusion of only its contiguous active neighbors ($\pm \text{BLOB\_HALF}$), preventing jumps caused by reflections on the track.
+4. **IIR Filter and Jump Limit:** Position smoothing to avoid abrupt discontinuities.
 
 ---
 
-## Comandos Infrarrojos (Control Remoto)
+## Infrared Commands (Remote Control)
 
-| Comando | Código Hex | Acción |
+| Command | Hex Code | Action |
 | --- | --- | --- |
-| **CALIBRAR** | `0x45` | Entra a modo calibración (5 segundos de muestreo min/máx por paso) |
-| **ARRANCAR** | `0x46` | Inicia secuencia de seguridad (5 s delay + rampa de turbina + arranque de lazo PID) |
-| **PARAR** | `0x47` | Paro de emergencia de motores y turbina |
+| **CALIBRATE** | `0x45` | Enters calibration mode (5 seconds of min/max sampling per step) |
+| **START** | `0x46` | Starts safety sequence (5 s delay + turbine ramp + PID loop start) |
+| **STOP** | `0x47` | Emergency stop of motors and turbine |
 
 ---
 
-## Estructura del Repositorio
+## Repository Structure
 
 ```
 Celerino-LineFollower/
 ├── main/
-│   ├── main.c              # Código principal en C (ESP-IDF)
-│   └── CMakeLists.txt      # Configuración de compilación del componente principal
-├── CMakeLists.txt          # Proyecto CMake
-└── README.md               # Documentación general del repositorio
+│   ├── main.c              # Main code in C (ESP-IDF)
+│   └── CMakeLists.txt      # Build configuration of the main component
+├── hardware/
+│   ├── schematics/         # PCB schematics (EasyEDA)
+│   └── 3d_models/          # 3D CAD models of chassis and transmission (SolidWorks)
+├── docs/                   # Technical documentation, innovation and mechanical advantages
+├── CMakeLists.txt          # CMake project
+└── README.md               # General repository documentation
 ```
 
 ---
 
-## Requisitos de Software y Compilación
+## Software and Build Requirements
 
-| Herramienta | Versión Recomendada |
+| Tool | Recommended Version |
 | --- | --- |
 | **ESP-IDF** | v5.x |
-| **Toolchain RISC-V** | Incluido en ESP-IDF |
-| **EasyEDA** | Para diseño de PCB / Gerber |
-| **SolidWorks** | Para visualización y modificación de partes 3D |
+| **RISC-V Toolchain** | Included in ESP-IDF |
+| **EasyEDA** | For PCB design / Gerber |
+| **SolidWorks** | For viewing and modifying 3D parts |
 
-### Compilación y Carga vía ESP-IDF
+### Build and Upload via ESP-IDF
 
 ```bash
-# Configurar el objetivo para el ESP32-C3
+# Set the target to the ESP32-C3
 idf.py set-target esp32c3
 
-# Compilar el proyecto
+# Build the project
 idf.py build
 
-# Flashear el microcontrolador y abrir monitor serie
+# Flash the microcontroller and open serial monitor
 idf.py -p /dev/ttyUSB0 flash monitor
 ```
 
 ---
 
-## Equipo de Desarrollo
+## Development Team
 
-**Desarrollo de Firmware, Electrónica y Mecánica:**
+**Firmware, Electronics and Mechanical Development:**
 
 * Ana Paola Cardona Valenzuela
 * Emiliano Pérez Dyck
 * Luis Adrián Anchondo Carreón
-* Manuel Alejandro García González
 
-**Institución:** Instituto Tecnológico de Chihuahua (TecNM / ITCH)  
-**Departamento:** Eléctrica y Electrónica  
-**Especialidad:** IA en Sistemas Embebidos
-**Año:** 2026
+**Institution:** Instituto Tecnológico de Chihuahua (TecNM / ITCH)  
+**Department:** Metal-Mechanics / Electrical and Electronic Engineering  
+**Specialty:** Embedded Systems and Competitive Robotics  
+**Year:** 2026
 
 ---
 
 <p align="center">
-  Instituto Tecnológico de Chihuahua · Chihuahua, México · 2026
+  Instituto Tecnológico de Chihuahua · Chihuahua, Mexico · 2026
 </p>
