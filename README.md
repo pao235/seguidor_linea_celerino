@@ -120,10 +120,6 @@ Celerino-LineFollower/
 ├── main/
 │   ├── main.c              # Main code in C (ESP-IDF)
 │   └── CMakeLists.txt      # Build configuration of the main component
-├── hardware/
-│   ├── schematics/         # PCB schematics (EasyEDA)
-│   └── 3d_models/          # 3D CAD models of chassis and transmission (SolidWorks)
-├── docs/                   # Technical documentation, innovation and mechanical advantages
 ├── CMakeLists.txt          # CMake project
 └── README.md               # General repository documentation
 ```
