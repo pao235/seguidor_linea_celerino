@@ -92,8 +92,8 @@ RECEPTOR_IR:
 
 // =============== VELOCIDADES ============
 // Escaladas a 12 bits (Anterior * 4)
-#define BASE_SPEED          1000//3000//2800 //2700 // 2600   //2400
-#define SEARCH_SPEED        1166 //3500 // 3000
+#define BASE_SPEED          1210 //1000 // 3000//2800 //2700 // 2600   //2400
+#define SEARCH_SPEED        1410 //1282 //1166 //3500 // 3000
 #define CAL_SPEED           660
 #define MAX_SPEED           4095 
 
@@ -107,13 +107,13 @@ RECEPTOR_IR:
 
 #define FAN_ESC_MIN_US    900   // mínimo / desarmado
 #define FAN_ESC_IDLE_US  1100   // ralentí
-#define FAN_ESC_MAX_US   1600  // tope del ESC
+#define FAN_ESC_MAX_US   1400  // tope del ESC
 #define FAN_ARM_TIME_MS  5000
 
 #define FAN_FRAME_MS       20   // 1 trama = 20 ms (50 Hz)
 #define FAN_RAMP_US_PER_S 400   // pendiente de la rampa: µs de pulso por segundo
 
-#define FAN_DEFAULT_RUN_US 1600 // se recorta a FAN_ESC_MAX_US en fan_set_speed_us()
+#define FAN_DEFAULT_RUN_US 1400 // se recorta a FAN_ESC_MAX_US en fan_set_speed_us()
 
 // ============ GEOMETRÍA / ESTIMADOR ============
 
@@ -162,9 +162,9 @@ static int64_t last_t_us = 0;
  *   Kp = 0.1 * 1000/7          ~= 14.3
  *   Kd = 0.6 * 1000/7 * 0.0105 ~= 0.9
  */
-float Kp = 30.0f;
+float Kp = 10.0f; //30.0f;
 float Ki = 0.0f;
-float Kd = 2.65f;
+float Kd = 1.0f; //2.65f;
 
 // ================ TURBINA ===============
 
