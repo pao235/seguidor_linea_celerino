@@ -92,8 +92,8 @@ RECEPTOR_IR:
 
 // =============== VELOCIDADES ============
 // Escaladas a 12 bits (Anterior * 4)
-#define BASE_SPEED          3000//2800 //2700 // 2600   //2400
-#define SEARCH_SPEED        3500 // 3000
+#define BASE_SPEED          1000//3000//2800 //2700 // 2600   //2400
+#define SEARCH_SPEED        1166 //3500 // 3000
 #define CAL_SPEED           660
 #define MAX_SPEED           4095 
 
