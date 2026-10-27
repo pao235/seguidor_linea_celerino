@@ -92,8 +92,8 @@ RECEPTOR_IR:
 
 // =============== VELOCIDADES ============
 // Escaladas a 12 bits (Anterior * 4)
-#define BASE_SPEED          1210 //1000 // 3000//2800 //2700 // 2600   //2400
-#define SEARCH_SPEED        1410 //1282 //1166 //3500 // 3000
+#define BASE_SPEED          1331 //1210 //1000 // 3000//2800 //2700 // 2600   //2400
+#define SEARCH_SPEED        1551 //1410 //1282 //1166 //3500 // 3000
 #define CAL_SPEED           660
 #define MAX_SPEED           4095 
 
@@ -162,7 +162,7 @@ static int64_t last_t_us = 0;
  *   Kp = 0.1 * 1000/7          ~= 14.3
  *   Kd = 0.6 * 1000/7 * 0.0105 ~= 0.9
  */
-float Kp = 10.0f; //30.0f;
+float Kp = 18.0f; //10.0f; //30.0f;
 float Ki = 0.0f;
 float Kd = 1.0f; //2.65f;
 
@@ -375,9 +375,9 @@ void app_main(void)
                     was_lost = true;
 
                     if (last_pos_mm > 0.0f)
-                        set_motor_speeds(SEARCH_SPEED, -SEARCH_SPEED);
+                        set_motor_speeds(SEARCH_SPEED, 0);
                     else
-                        set_motor_speeds(-SEARCH_SPEED, SEARCH_SPEED);
+                        set_motor_speeds(0, SEARCH_SPEED);
                 }
                 break;
             }
